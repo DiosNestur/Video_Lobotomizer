@@ -1,4 +1,4 @@
-from moviepy.editor import VideoFileClip, clips_array, vfx
+from moviepy.editor import VideoFileClip, CompositeVideoClip
 import os
 import random
 
@@ -8,24 +8,44 @@ def list_video_files(directory):
     return video_files
 
 def combine_videos(video1_path, video2_path, output_dir):
-    """Combina dos vídeos en uno solo en formato vertical y lo guarda con el nombre del primer vídeo más '_lobotomized'."""
-    clip1 = VideoFileClip(video1_path).resize(height=1920)
-    clip2 = VideoFileClip(video2_path).resize(height=1920)
+    """Combina dos vídeos en uno solo en formato vertical."""
+    original_clip = VideoFileClip(video1_path)
+    lobotomy_clip = VideoFileClip(video2_path)
     
-    min_duration = min(clip1.duration, clip2.duration)
-    clip1 = clip1.subclip(0, min_duration)
-    clip2 = clip2.subclip(0, min_duration)
-    
-    final_clip = clips_array([[clip1, clip2]]).resize(width=1080)
-    
+    # Determinar la duración del original_video para adaptar lobotomy_video a esta duración
+    original_duration = original_clip.duration
+
+    # Ajustar lobotomy_clip a la duración de original_clip
+    if lobotomy_clip.duration < original_duration:
+        # Si lobotomy_clip es más corto, se repite hasta alcanzar la duración de original_clip
+        lobotomy_clip = lobotomy_clip.loop(duration=original_duration)
+    else:
+        # Si lobotomy_clip es más largo, se recorta para coincidir con la duración de original_clip
+        lobotomy_clip = lobotomy_clip.subclip(0, original_duration)
+
+    # Ajustar ambos clips a la misma altura
+    original_clip_resized = original_clip.resize(height=1920)
+    lobotomy_clip_resized = lobotomy_clip.resize(height=1920)
+
+    # Calcular la posición y para el segundo clip
+    y_pos = original_clip_resized.size[1]  # La altura del primer clip
+
+    # Crear un CompositeVideoClip para apilar verticalmente
+    final_clip = CompositeVideoClip([original_clip_resized.set_position(("center", 0)), lobotomy_clip_resized.set_position(("center", y_pos))], size=(original_clip_resized.size[0], original_clip_resized.size[1]*2))
+
+    # Ajustar la duración del clip final para que coincida con la duración de original_clip
+    final_clip = final_clip.set_duration(original_duration)
+
     # Extraer el nombre del archivo sin la ruta y sin la extensión
     original_video_name = os.path.splitext(os.path.basename(video1_path))[0]
     output_path = os.path.join(output_dir, f"{original_video_name}_lobotomized.mp4")
-    final_clip.write_videofile(output_path, codec='libx264', fps=30)
+    
+    # Escribir el vídeo resultante, utilizando solo el audio de original_clip
+    final_clip.write_videofile(output_path, codec='libx264', fps=30, audio=video1_path)
     print(f"Vídeo combinado guardado como {output_path}")
 
 def process_folders(original_dir, lobotomy_dir, output_dir):
-    # Crear la carpeta de salida si no existe
+    """Procesa los directorios y combina los vídeos."""
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     

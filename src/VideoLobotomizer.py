@@ -4,6 +4,10 @@ import subprocess
 import os
 import shutil
 from moviepy.editor import VideoFileClip, CompositeVideoClip
+import tkinter as tk
+from tkinter import filedialog, messagebox, Label
+import threading
+
 
 def generate_random_datetime_within_months(months=4, start_hour=9, end_hour=21):
     end_date = datetime.datetime.now()
@@ -75,7 +79,7 @@ def combine_videos(video1_path, video2_path, output_dir):
     original_video_name = os.path.splitext(os.path.basename(video1_path))[0]
     output_path = os.path.join(output_dir, f"{original_video_name}_lobotomized.mp4")
     
-    final_clip.write_videofile(output_path, codec='libx265', fps=30, audio=video1_path)
+    final_clip.write_videofile(output_path, codec='libx264', fps=30, audio=video1_path)
     print(f"Vídeo combinado guardado como {output_path}")
 
 def process_folders_for_metadata_removal(source_folder, destination_folder):
@@ -96,29 +100,80 @@ def process_folders_for_lobotomy(original_dir, lobotomy_dir, output_dir):
         
         combine_videos(original_video, lobotomy_video, output_dir)
 
-def main_menu():
-    print("1. Borrar metadatos")
-    print("2. Lobotomizar videos")
-    print("3. Lobotomizar y borrar metadatos")
-    choice = input("Seleccione una opción: ")
+# Funciones adaptadas para la GUI
 
-    if choice == '1':
-        source_folder = input("Ingrese la carpeta de origen de los videos para borrar metadatos: ")
-        destination_folder = input("Ingrese la carpeta de destino para los videos procesados: ")
-        process_folders_for_metadata_removal(source_folder, destination_folder)
-    elif choice == '2':
-        original_dir = input("Ingrese la carpeta de los videos originales: ")
-        lobotomy_dir = input("Ingrese la carpeta de los videos de lobotomía: ")
-        output_dir = input("Ingrese la carpeta de destino para los videos lobotomizados: ")
-        process_folders_for_lobotomy(original_dir, lobotomy_dir, output_dir)
-    elif choice == '3':
-        original_dir = input("Ingrese la carpeta de los videos originales: ")
-        lobotomy_dir = input("Ingrese la carpeta de los videos de lobotomía: ")
-        output_dir = input("Ingrese la carpeta de destino para los videos lobotomizados: ")
-        process_folders_for_lobotomy(original_dir, lobotomy_dir, output_dir)
-        process_folders_for_metadata_removal(output_dir, output_dir)
+def execute_in_thread(func, *args):
+    def operation():
+        gui_operation_started()
+        try:
+            func(*args)
+        except Exception as e:
+            print(f"Ocurrió un error: {e}")
+        finally:
+            gui_operation_completed()
+    threading.Thread(target=operation).start()
+
+def gui_operation_started():
+    for button in buttons:
+        button['state'] = 'disabled'
+
+def gui_operation_completed():
+    def reenable_buttons():
+        for button in buttons:
+            button['state'] = 'normal'
+        messagebox.showinfo("Completado", "La operación esta en curso.")
+    root.after(0, reenable_buttons)
+    
+def create_gui():
+    global root, buttons
+    root = tk.Tk()
+    root.title("Video Lobotomizer & Metadata Remover")
+
+    btn_remove_metadata = tk.Button(root, text="Borrar metadatos", command=lambda: execute_in_thread(gui_remove_all_metadata))
+    btn_remove_metadata.pack(fill=tk.X, padx=50, pady=10)
+
+    btn_lobotomize_videos = tk.Button(root, text="Lobotomizar videos", command=lambda: execute_in_thread(gui_lobotomize_videos))
+    btn_lobotomize_videos.pack(fill=tk.X, padx=50, pady=10)
+
+    btn_lobotomize_and_remove = tk.Button(root, text="Lobotomizar y borrar metadatos", command=lambda: execute_in_thread(gui_lobotomize_and_remove_metadata))
+    btn_lobotomize_and_remove.pack(fill=tk.X, padx=50, pady=10)
+
+    buttons = [btn_remove_metadata, btn_lobotomize_videos, btn_lobotomize_and_remove]
+
+    root.mainloop()
+
+def gui_remove_all_metadata():
+    source_folder = filedialog.askdirectory(title="Seleccione la carpeta de origen de los videos")
+    destination_folder = filedialog.askdirectory(title="Seleccione la carpeta de destino para los videos procesados")
+    if source_folder and destination_folder:
+        execute_in_thread(process_folders_for_metadata_removal, source_folder, destination_folder)
     else:
-        print("Opción no válida.")
+        messagebox.showinfo("Información", "Operación cancelada o carpeta no válida.")
+
+def gui_lobotomize_videos():
+    original_dir = filedialog.askdirectory(title="Seleccione la carpeta de los videos originales")
+    lobotomy_dir = filedialog.askdirectory(title="Seleccione la carpeta de los videos de lobotomía")
+    output_dir = filedialog.askdirectory(title="Seleccione la carpeta de destino para los videos lobotomizados")
+    if original_dir and lobotomy_dir and output_dir:
+        execute_in_thread(process_folders_for_lobotomy, original_dir, lobotomy_dir, output_dir)
+    else:
+        messagebox.showinfo("Información", "Operación cancelada o carpeta no válida.")
+        
+def process_folders_for_lobotomy_and_metadata_removal(original_dir, lobotomy_dir, output_dir):
+    process_folders_for_lobotomy(original_dir, lobotomy_dir, output_dir)
+    process_folders_for_metadata_removal(output_dir, output_dir)
+    messagebox.showinfo("Información", "Videos lobotomizados y metadatos borrados con éxito.")
+
+def gui_lobotomize_and_remove_metadata():
+    original_dir = filedialog.askdirectory(title="Seleccione la carpeta de los videos originales")
+    lobotomy_dir = filedialog.askdirectory(title="Seleccione la carpeta de los videos de lobotomía")
+    output_dir = filedialog.askdirectory(title="Seleccione la carpeta de destino para los videos lobotomizados")
+    if original_dir and lobotomy_dir and output_dir:
+        execute_in_thread(process_folders_for_lobotomy_and_metadata_removal, original_dir, lobotomy_dir, output_dir)
+    else:
+        messagebox.showinfo("Información", "Operación cancelada o carpeta no válida.")
+
 
 if __name__ == "__main__":
-    main_menu()
+    create_gui()
+
